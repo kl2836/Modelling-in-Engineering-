@@ -1,0 +1,49 @@
+%Euler-Murayama update plus stochastic system of equations
+
+function [t, x] = sde(K, T, dt0, x0)
+
+r = K(1); kk = K(2); lambda = K(3); mu = K(4); m = K(5); a = K(6); theta = K(7); epsilon = K(8);
+t = 0;
+x = x0;
+xold = x0;
+
+     
+while t(end) < T
+dt = min([T-t(end) dt0]);
+dW = sqrt(dt)*randn;
+
+drift = [r*xold(1)*(1-(xold(1)+xold(2))/kk) - lambda*xold(1)*xold(2); 
+        lambda*xold(1)*xold(2) - mu*xold(2) - m*xold(2)*xold(3)/(xold(2)+a); 
+        theta*xold(2)*xold(3)/(xold(2)+a) - epsilon*xold(3)];
+
+random = randn*sqrt(dt); 
+noise = [sqrt(r*xold(1))*randn*sqrt(dt) - sqrt(r/kk*xold(1)*(xold(1)+xold(2)))*randn*sqrt(dt) - sqrt(lambda*xold(1)*xold(2))*random;
+        sqrt(lambda*xold(1)*xold(2))*random - sqrt(m*xold(3)*xold(2)/(xold(2)+a)+mu*xold(2))*randn*sqrt(dt);
+        sqrt(theta*xold(2)*xold(3)/(xold(2)+a))*randn*sqrt(dt) - sqrt(epsilon*xold(3))*randn*sqrt(dt)];
+
+xnew = xold + drift*dt + noise;
+
+
+%check if any specifies went negative
+if min(xnew) < 0
+    %calculate temptdt, the value of dt would have made is so that
+    %min(xnew) = 0.5*min(xold)
+    tempdt = dt;
+    while min(xnew) < 0.5*min(xold)
+        tempdt = tempdt/2;
+        xnew = xold + drift * tempdt + noise*sqrt(tempdt)/sqrt(dt);
+    end 
+    
+    t = [t, t(end)+tempdt];
+    x = [x, xnew];
+else 
+    t = [t, t(end)+dt];
+    x = [x, xnew];
+end 
+xold = xnew;
+end
+
+z = x(:, end);
+figure;
+plot(t(:),x(1,:), '-r', t(:), x(2,:), '-b', t(:), x(3,:), '-g');
+end
