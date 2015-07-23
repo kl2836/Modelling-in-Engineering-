@@ -1,0 +1,146 @@
+%Differential Algebraic Equations
+
+function dae(T, idt , k , y0 , z0, tol , itol)
+
+N = T/idt;
+
+A = 0.01;
+% daesolver(k, T, gam, idt, C, y0, z0, tol);
+dt = T/N;
+gam = 1; k = [1;1;1;0;pi]; C = y0; 
+
+[y, z] = daesolver(k, T, gam, idt, C, y0, z0, tol);
+%first bdf 1 step with time step idt
+y1 = y0 + idt*(1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y); %y value
+x = -A*sin(k(5)*idt); 
+z = [x ; 1/k(1)*(x-y1)]; %z value
+
+y = [y0,y1];
+y_0 = y0; 
+y_1 = y1; 
+dt = idt;
+t= [0, dt];
+y1n = 0; %initialize
+
+while t(end) < T
+    
+    dtnew = dt;
+    %bdf test 1
+    %z_1 = solver(k,1,dt1,y_1,y_1,itol);
+    %y1 = y_1+dt1*F(k,z_1); 
+    [y, z] = daesolver(k, T, gam, dtnew, y_1, y_1, z, tol); %need to initialize these variables
+    y1n = y + dtnew*(1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y); %second y could be y_1
+    x = -A*sin(k(5)*dtnew); 
+    z = [x ; 1/k(1)*(x-y1n)]; 
+    
+    %bdf test 2
+    %z_2 = solver(k,2/3,dtnew,(4/3)*y_1-y_0/3,y_1,itol);
+    %y2 = (4/3)*y_1-1/3*y_0 + 2/3*F(k,z_2)*dtnew;
+    [y, z]=daesolver(k, T, 2/3, dtnew, (4/3)*y - y_0/3, y_1, z, tol);
+    y2n = (4/3)*y - y_0/3 + (2/3)*(1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y)*dtnew;
+    x = -A*sin(k(5)*dtnew); 
+    z = [x ; 1/k(1)*(x-y2n)]; 
+    
+    e1 = norm(y2n - y1n,2);
+    
+    startime = 0.9*(dtnew^2/e1/T*tol);
+    compare = [startime 2*dtnew T-t(end)];
+    
+    dtn = min(compare); %dtn = optimal time step
+    
+    %bdf 1 test with optimal time step
+    [y, z] = daesolver(k, T, gam, dtn, y_1, y_1, z, tol); 
+    y1n = y + dtn*(1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y);
+    x = -A*sin(k(5)*dtn); 
+    z = [x ; 1/k(1)*(x-y1n)]; 
+    
+    %bdf 2 test with optimal time step
+    [y, z]=daesolver(k, T, (dtn+dt)/(2*dtn+dt), dtn,((dt+dtn)^2)/dt/(2*dtn+dt)*y_1 - dtn^2/dt/(2*dtn+dt)*y_0, y_1, z, tol);
+    
+    y2n=((dt+dtn)^2)/dt/(2*dtn+dt)*y_1 - dtn^2/dt/(2*dtn+dt)*y_0; 
+    + (1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y)*dtn*(dtn+dt)/(2*dtn+dt);
+    x = -A*sin(k(5)*dtn); 
+    z = [x ; 1/k(1)*(x-y2n)]; 
+   
+    while norm(y2n-y1n,2) > dtn/T*tol 
+       
+        e1=norm(y2n-y1n,2);
+        startime=0.9*(dtn^2/T/e1*tol);
+        
+        compare = [startime 2*dtn T-t(end)];
+        dtn = min(compare);
+
+        %bdf 1 test with optimal time step
+        [y, z] = daesolver(k, T, gam, dtn, C, y_1, z, tol); 
+        y1n = y_1 + dtn*(1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y1n);
+        x = -A*sin(k(5)*dtn); 
+        z = [x ; 1/k(1)*(x-y1n)]; 
+    
+        %bdf 2 test with optimal time step
+        [y, z]=daesolver(k, T, (dtn+dt)/(2*dtn+dt), dtn,((dt+dtn)^2)/dt/(2*dtn+dt)*y_1-dtn^2/dt/(2*dtn+dt)*y_0, y_1, z, tol);
+        
+        y2n=((dt+dtn)^2)/dt/(2*dtn+dt)*y_1 - dtn^2/dt/(2*dtn+dt)*y_0 
+        + (1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y)*dtn*(dtn+dt)/(2*dtn+dt);
+        x = -A*sin(k(5)*dtn); 
+        z = [x ; 1/k(1)*(x-y2n)]; 
+    end
+    
+    t = [t,t(end)+dtn] ; y = [y,y1n] ;
+%     y_0=y_1;
+%     y_1=y1;
+%     
+%     dt=dtn;
+%     K(t) = y1;
+%     Y(t) = z(1);
+%     L(t) = z(2);
+end
+figure(1) 
+plot(t, y(:))
+
+end
+
+function [y, z] = daesolver(k, t, gam, dt, C, yn, zn, tol)
+
+A = 0.01;
+J = jacobian(k, dt); %jacobian
+
+x = -A*sin(k(5)*dt); %this is e1
+zn = [x; 1/k(1)*(x-yn)]; %first step for z
+
+y = yn+dt*(1/k(1)/k(3)*zn(1)-1/k(1)/k(3)*yn); %first step for y
+
+%x = -A*sin(k(5)*t); 
+%z = [-A*sin(k(5)*t);1/k(1)*(x-y)]; 
+z = zn; %initial value for z
+r = [y - yn - dt*(1/k(1)/k(3)*zn(1)-1/k(1)/k(3)*yn);
+      -zn(2) + 1/k(1)*zn(1)-1/k(1)*yn; 
+      A*sin(k(5)*t)+zn(1)]; %initial residual
+
+while norm(r,2) > tol
+B = inv(J)*r; 
+
+y = y - B(1); %calculate new y
+z = z - [B(2); B(3)]; %calculate new z
+
+r = [y - yn - dt*(1/k(1)/k(3)*z(1)-1/k(1)/k(3)*y);
+    -z(2) + 1/k(1)*z(1)-1/k(1)*y; A*sin(k(5)*t)+z(1)]; %update residual
+%yn = y; %update yn's to previous value 
+%zn = z; %update zn's to previous value
+
+end  
+
+end
+
+
+function J = jacobian(k, dt)
+
+%return jacobian dF/dy
+    
+jacob = 0;
+jacob = [1+dt/k(1)/k(3), -dt/k(1)/k(3), 0; -1/k(1), 1/k(1), -1; 0, 1, 0];
+
+J = jacob;
+    
+end 
+
+
