@@ -1,0 +1,97 @@
+%Backward Difference formulas 1 and 2 accompanied with a Newton Solver 
+
+function bdf(T, idt , k , y0 , tol , itol)
+
+x =solver(k,1,idt,y0,y0,itol);
+y1=y0+idt*F(k,x);
+
+y=[y0,y1];
+y_0 = y0;
+y_1 = y1;
+dt = idt;
+t= [0, dt];
+
+while t(end) < T
+    dt1 = dt;
+    z_1 = solver(k,1,dt1,y_1,y_1,itol);
+    
+    y1 = y_1+dt1*F(k,z_1); 
+    z_2 = solver(k,2/3,dt1,(4/3)*y_1-y_0/3,y_1,itol);
+    
+    y2 = (4/3)*y_1-1/3*y_0 + 2/3*F(k,z_2)*dt1;
+    e1 = norm(y2 - y1,2);
+    
+    startime = 0.9*(dt1^2/e1/T*tol);
+    compare = [startime 2*dt1 T-t(end)];
+    
+    dtn = min(compare);
+    
+    z_1=solver(k,1,dtn,y_1,y_1,itol);
+    y1=y_1+dtn*F(k,z_1);
+    
+    z_2=solver(k,(dtn+dt)/(2*dtn+dt),dtn,((dt+dtn)^2)/dt/(2*dtn+dt)*y_1-dtn^2/dt/(2*dtn+dt)*y_0,y_1,itol);
+    y2=((dt+dtn)^2)/dt/(2*dtn+dt)*y_1-dtn^2/dt/(2*dtn+dt)*y_0 + F(k,z_2)*dtn*(dtn+dt)/(2*dtn+dt);
+    
+    while norm(y2-y1,2) > dtn/T*tol 
+       
+        e1=norm(y2-y1,2);
+        startime=0.9*(dtn^2/T/e1*tol);
+        
+        compare = [startime 2*dtn T-t(end)];
+        dtn = min(compare);
+
+        z_1=solver(k,1,dtn,y_1,y_1,itol);
+        y1=y_1+dtn*F(k,z_1);
+     
+        z_2=solver(k,(dtn+dt)/(2*dtn+dt),dtn,((dt+dtn)^2)/dt/(2*dtn+dt)*y_1-dtn^2/dt/(2*dtn+dt)*y_0,y_1,itol);
+        y2=((dt+dtn)^2)/dt/(2*dtn+dt)*y_1-dtn^2/dt/(2*dtn+dt)*y_0 + F(k,z_2)*dtn*(dtn+dt)/(2*dtn+dt);
+    end
+    
+    t = [t,t(end)+dtn] ; y = [y,y1] ;
+    y_0=y_1;
+    y_1=y1;
+    
+    dt=dtn;
+end
+
+figure (1) 
+subplot (2 ,1 ,1) 
+plot(t, y(1,:), 'b-', t, y(2 ,:), 'k-', t, y(3,:), 'r-', t, y(4,:), 'y-', t, y(5,:), 'g-');
+legend ('I' , 'R' , 'M' , 'Pdot', 'P'); 
+subplot (2 ,1 ,2) 
+plot(t(1:end-1),t(2:end)-t(1:end-1), 'k-');
+end
+
+function z = solver(k, gam, dt, C, yn, tol)
+
+J = JacF(k, yn);
+z = yn;
+r = z - gam*dt*F(k,z) - C;
+A = eye(5) - dt*gam *J;
+
+while norm(r,2) > tol
+z = z - inv(A)*r;
+r = z - gam*dt*F(k,z) - C; 
+end 
+end
+
+function J = JacF(k,y)
+jacob = 0;
+    jacob = [[-k(1), 0, 0, 0, 0]; 
+        [2*k(1), -k(2)*y(3)-4*k(3)*y(2)-k(3)*y(4), -k(2)*y(2), -k(3)*y(2),0];
+        [0, -k(2)*y(3), -k(2)*y(2)-k(2)*y(4), -k(2)*y(3), 0]; 
+        [0, k(2)*y(3)-k(3)*y(4), k(2)*y(2), -k(3)*y(2)-4*k(3)*y(4), 0];
+        [0,k(3)*y(4), 0, k(3)*y(2)+2*k(3)*y(4),0]];
+J = jacob;
+end 
+
+function yp = F(k, y)
+
+z = [-k(1)*y(1);2*k(1)*y(1)-k(2)*y(3)*y(2)-2*k(3)*(y(2))^2-k(3)*y(2)*y(4);
+    -k(2)*y(3)*y(2)-k(2)*y(3)*y(4);
+    k(2)*y(3)*y(2)-k(3)*y(2)*y(4)-2*k(3)*y(4)*y(4);
+    k(3)*y(4)*y(2)+k(3)*y(4)*y(4)];
+
+yp = z;
+end 
+
